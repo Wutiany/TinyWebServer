@@ -166,6 +166,7 @@ void WebServer::eventListen()
 
 void WebServer::timer(int connfd, struct sockaddr_in client_address)
 {
+    //wty 套接字的文件描述符对应下标
     users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
 
     //初始化client_data数据
@@ -176,8 +177,10 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     timer->user_data = &users_timer[connfd];
     timer->cb_func = cb_func;
     time_t cur = time(NULL);
+    //wty 下文，定时器延迟
     timer->expire = cur + 3 * TIMESLOT;
     users_timer[connfd].timer = timer;
+    // wty
     utils.m_timer_lst.add_timer(timer);
 }
 
@@ -387,6 +390,8 @@ void WebServer::eventLoop()
 
     while (!stop_server)
     {
+        //wty epoll_wait I/O 事件通知机制
+        //wty 将事件存储到events中，即发生的个数，number用来访问。timeout=-1表示一直等待有事件发生
         int number = epoll_wait(m_epollfd, events, MAX_EVENT_NUMBER, -1);
         if (number < 0 && errno != EINTR)
         {
@@ -405,6 +410,7 @@ void WebServer::eventLoop()
                 if (false == flag)
                     continue;
             }
+            //wyy EPOLLRDHUP（表示对端关闭连接）EPOLLHUP （表示连接被挂起）EPOLLERR（表示错误事件）出现了这三种事件，则关闭链接，移除对应的定时器
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
                 //服务器端关闭连接，移除对应的定时器
@@ -412,6 +418,7 @@ void WebServer::eventLoop()
                 deal_timer(timer, sockfd);
             }
             //处理信号
+            //wty 处理进程间读取的信号 EPOLLIN表示文件描述符可以读取数据
             else if ((sockfd == m_pipefd[0]) && (events[i].events & EPOLLIN))
             {
                 bool flag = dealwithsignal(timeout, stop_server);
@@ -423,6 +430,7 @@ void WebServer::eventLoop()
             {
                 dealwithread(sockfd);
             }
+            //wty 处理写入数据
             else if (events[i].events & EPOLLOUT)
             {
                 dealwithwrite(sockfd);
