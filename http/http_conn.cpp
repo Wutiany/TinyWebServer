@@ -63,13 +63,17 @@ void addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
     event.data.fd = fd;
 
     if (1 == TRIGMode)
+        //wty EPOLLRDHUP对段关闭连接
         event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
     else
         event.events = EPOLLIN | EPOLLRDHUP;
 
     if (one_shot)
+        //wty EPOLLONESHOT一次性触发，当文件描述符上的事件被触发，epoll会从监听队列中自动删除文件描述符
         event.events |= EPOLLONESHOT;
+    //wty 修改epoll的描述符，EPOLL_CTL_ADD 向 epoll监听队列加入一个新的文件描述符和事件（epoll_event）
     epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
+    //wty ET 触发，一次操作一个，一次性读完，所以要将套接字设置成非阻塞
     setnonblocking(fd);
 }
 
@@ -169,8 +173,10 @@ http_conn::LINE_STATUS http_conn::parse_line()
         temp = m_read_buf[m_checked_idx];
         if (temp == '\r')
         {
+            //wty 读到头
             if ((m_checked_idx + 1) == m_read_idx)
                 return LINE_OPEN;
+            //wty 读到换行符，要对缓冲区的换行符进行替换
             else if (m_read_buf[m_checked_idx + 1] == '\n')
             {
                 m_read_buf[m_checked_idx++] = '\0';
@@ -241,7 +247,9 @@ bool http_conn::read_once()
 //解析http请求行，获得请求方法，目标url及http版本号
 http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
 {
+    //wty strpbrk 用于在一个字符串中查找另一个字符串中的任意字符，返回一个指向第一个字符的指针
     m_url = strpbrk(text, " \t");
+    // wty if 语句不仅判断完全，也和下方的赋值语句是一起的
     if (!m_url)
     {
         return BAD_REQUEST;
@@ -257,7 +265,9 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     }
     else
         return BAD_REQUEST;
+    //wty 不区分大小写，返回查找字符的个数
     m_url += strspn(m_url, " \t");
+    //wty 将地址修改成下一个部分的位置
     m_version = strpbrk(m_url, " \t");
     if (!m_version)
         return BAD_REQUEST;
@@ -268,6 +278,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     if (strncasecmp(m_url, "http://", 7) == 0)
     {
         m_url += 7;
+        //wty strspn查找字符第一个只出现的位置，并返回位置指针
         m_url = strchr(m_url, '/');
     }
 
@@ -276,7 +287,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
         m_url += 8;
         m_url = strchr(m_url, '/');
     }
-
+    //wty m_url to ->'/'
     if (!m_url || m_url[0] != '/')
         return BAD_REQUEST;
     //当url为/时，显示判断界面
@@ -311,6 +322,7 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
     {
         text += 15;
         text += strspn(text, " \t");
+        //wty 将字符转换成长整形，获取 content-lenght 的内容
         m_content_length = atol(text);
     }
     else if (strncasecmp(text, "Host:", 5) == 0)
@@ -329,6 +341,7 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
 //判断http请求是否被完整读入
 http_conn::HTTP_CODE http_conn::parse_content(char *text)
 {
+    //wty m_read_idx 为read_once() func 全部读完后获取的数据长度，m_checked_idx 为一行内容的长度
     if (m_read_idx >= (m_content_length + m_checked_idx))
     {
         text[m_content_length] = '\0';
@@ -345,6 +358,7 @@ http_conn::HTTP_CODE http_conn::process_read()
     HTTP_CODE ret = NO_REQUEST;
     char *text = 0;
 
+    //wty 主狀態機调用从状态机，从状态机返回状态驱使主状态机，主状态机通过从状态机读取一行，然后主状态机通过解析函数去解析不同的部分
     while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) || ((line_status = parse_line()) == LINE_OK))
     {
         text = get_line();
@@ -364,6 +378,7 @@ http_conn::HTTP_CODE http_conn::process_read()
             ret = parse_headers(text);
             if (ret == BAD_REQUEST)
                 return BAD_REQUEST;
+            //wty 判断 do_request 的原因是 text[0] = '\0' 的同时，content-length 为0
             else if (ret == GET_REQUEST)
             {
                 return do_request();
@@ -390,8 +405,10 @@ http_conn::HTTP_CODE http_conn::do_request()
     strcpy(m_real_file, doc_root);
     int len = strlen(doc_root);
     //printf("m_url:%s\n", m_url);
+    //wty 查找指定字符的最后一个位置，即 url 后面的文件的内容
     const char *p = strrchr(m_url, '/');
 
+    //wty p + 1 的位置存储着登录的选项， =‘2’为登录，=‘3’为注册
     //处理cgi
     if (cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3'))
     {
@@ -455,7 +472,7 @@ http_conn::HTTP_CODE http_conn::do_request()
                 strcpy(m_url, "/logError.html");
         }
     }
-
+    //wty p+1 表示不同的网页请求，
     if (*(p + 1) == '0')
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
@@ -501,7 +518,7 @@ http_conn::HTTP_CODE http_conn::do_request()
 
     if (stat(m_real_file, &m_file_stat) < 0)
         return NO_RESOURCE;
-
+    //wty S_IROTH文件的其他用户读取权限
     if (!(m_file_stat.st_mode & S_IROTH))
         return FORBIDDEN_REQUEST;
 
@@ -509,7 +526,10 @@ http_conn::HTTP_CODE http_conn::do_request()
         return BAD_REQUEST;
 
     int fd = open(m_real_file, O_RDONLY);
+    //wty 将文件的内存地址映射到 m_file_address，
+    //wty mmap() 是一个系统调用，用于将一个文件或设备映射到进程的地址空间，以便进程可以直接访问文件或设备的内容
     m_file_address = (char *)mmap(0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    //wty 映射完地址后，文件的文件描述符就不需要打开了，文件可以通过地址进行访问
     close(fd);
     return FILE_REQUEST;
 }
@@ -534,10 +554,12 @@ bool http_conn::write()
 
     while (1)
     {
+        //wty writev将多个缓冲区的数据一次性写入文件或套接字中，作用是将响应信息和请求文件聚集写到 TCP socket 本身定义的发送缓冲区
         temp = writev(m_sockfd, m_iv, m_iv_count);
 
         if (temp < 0)
         {
+            //wty EAGAIN資源不足或資源不可用
             if (errno == EAGAIN)
             {
                 modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
@@ -582,8 +604,11 @@ bool http_conn::add_response(const char *format, ...)
 {
     if (m_write_idx >= WRITE_BUFFER_SIZE)
         return false;
+    //wty 可变参数列表
     va_list arg_list;
+    //wty 用来初始化参数列表
     va_start(arg_list, format);
+    //wty 可变参数函数，输出的字符串会被写到 s 指定的缓冲区中
     int len = vsnprintf(m_write_buf + m_write_idx, WRITE_BUFFER_SIZE - 1 - m_write_idx, format, arg_list);
     if (len >= (WRITE_BUFFER_SIZE - 1 - m_write_idx))
     {
