@@ -11,7 +11,7 @@ class sem
 public:
     sem()
     {
-        //wty pshared 信号量共享方式
+        //wty pshared 信号量共享方式，信号量是一种计数器
         if (sem_init(&m_sem, 0, 0) != 0)
         {
             //wty 初始化不成功抛出异常
@@ -27,14 +27,17 @@ public:
     }
     ~sem()
     {
+        //wty 銷毀信號量指針
         sem_destroy(&m_sem);
     }
     bool wait()
     {
+        //wty 等待信号量>0则减少信号量（1）并返回，如果=0，线程阻塞等待其他线程调用sem_post增加信号量的值
         return sem_wait(&m_sem) == 0;
     }
     bool post()
     {
+        //wty 增加信号量的值，唤醒等待线程
         return sem_post(&m_sem) == 0;
     }
 
@@ -94,6 +97,7 @@ public:
     {
         int ret = 0;
         //pthread_mutex_lock(&m_mutex);
+        //wty 正常为0返回值,会首先对互斥锁解锁，但是调用前需要先对线程进行加锁
         ret = pthread_cond_wait(&m_cond, m_mutex);
         //pthread_mutex_unlock(&m_mutex);
         return ret == 0;
