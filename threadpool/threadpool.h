@@ -43,11 +43,14 @@ threadpool<T>::threadpool( int actor_model, connection_pool *connPool, int threa
         throw std::exception();
     for (int i = 0; i < thread_number; ++i)
     {
+        //wty worker是当前线程的worker方法，该方法是启动传入参数的线程的run函数，参传入的是this指针，相当于对当前线程池创建了thread_number个worker
+        //wty 即调佣了thread_number次run方法来进行对请求队列（http_conn）的操作,来进行对请求队列进行竞争
         if (pthread_create(m_threads + i, NULL, worker, this) != 0)
         {
             delete[] m_threads;
             throw std::exception();
         }
+        //wty 将线程设置成可分离状态，如果成功返回0，如果线程已经结束或者被分离则返回错误结果
         if (pthread_detach(m_threads[i]))
         {
             delete[] m_threads;
@@ -63,12 +66,15 @@ threadpool<T>::~threadpool()
 template <typename T>
 bool threadpool<T>::append(T *request, int state)
 {
+    //wty 使用锁来保证数据的一致性
     m_queuelocker.lock();
+    //wty 要考虑工作队列中 http_conn 的数量否超过最大限制
     if (m_workqueue.size() >= m_max_requests)
     {
         m_queuelocker.unlock();
         return false;
     }
+    //wty http_conn->m_state   state = 0
     request->m_state = state;
     m_workqueue.push_back(request);
     m_queuelocker.unlock();
@@ -92,6 +98,7 @@ bool threadpool<T>::append_p(T *request)
 template <typename T>
 void *threadpool<T>::worker(void *arg)
 {
+    //wty 只有在初始化的时候会调用 worker，arg是实例指针
     threadpool *pool = (threadpool *)arg;
     pool->run();
     return pool;
@@ -99,8 +106,10 @@ void *threadpool<T>::worker(void *arg)
 template <typename T>
 void threadpool<T>::run()
 {
+    //wty 多个run方法中的 while(True) 同时处理一个请求队列，来提高并发性
     while (true)
     {
+        //wty 在append中有post
         m_queuestat.wait();
         m_queuelocker.lock();
         if (m_workqueue.empty())
@@ -115,16 +124,20 @@ void threadpool<T>::run()
             continue;
         if (1 == m_actor_model)
         {
+            //wty m_state为读写操作标志 读为0 写为1
             if (0 == request->m_state)
             {
+                //wty 根据不同的模式会分别读和一次性全读，都是这个方法
                 if (request->read_once())
                 {
+                    //wty mysql相关的成员变量
                     request->improv = 1;
                     connectionRAII mysqlcon(&request->mysql, m_connPool);
                     request->process();
                 }
                 else
                 {
+                    //wty 读失败会对定时器进行操作
                     request->improv = 1;
                     request->timer_flag = 1;
                 }
@@ -137,6 +150,7 @@ void threadpool<T>::run()
                 }
                 else
                 {
+                    //wty 写失败也会对定时器进行操作
                     request->improv = 1;
                     request->timer_flag = 1;
                 }

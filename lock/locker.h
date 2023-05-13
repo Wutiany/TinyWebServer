@@ -5,13 +5,16 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+//wty 封装的信号量类
 class sem
 {
 public:
     sem()
     {
+        //wty pshared 信号量共享方式
         if (sem_init(&m_sem, 0, 0) != 0)
         {
+            //wty 初始化不成功抛出异常
             throw std::exception();
         }
     }
@@ -38,6 +41,8 @@ public:
 private:
     sem_t m_sem;
 };
+
+//wty 封装的posix标准的互斥锁
 class locker
 {
 public:
@@ -68,6 +73,8 @@ public:
 private:
     pthread_mutex_t m_mutex;
 };
+
+//wty 封装的条件变量，作用是把释放互斥锁到休眠当做一个原子操作
 class cond
 {
 public:
