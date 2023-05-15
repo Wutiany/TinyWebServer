@@ -12,7 +12,9 @@ using namespace std;
 
 connection_pool::connection_pool()
 {
+    //wty 当前已使用链接数
 	m_CurConn = 0;
+    //wty 当前空闲链接数
 	m_FreeConn = 0;
 }
 
@@ -42,6 +44,7 @@ void connection_pool::init(string url, string User, string PassWord, string DBNa
 			LOG_ERROR("MySQL Error");
 			exit(1);
 		}
+        //wty 建立与服务器的链接
 		con = mysql_real_connect(con, url.c_str(), User.c_str(), PassWord.c_str(), DBName.c_str(), Port, NULL, 0);
 
 		if (con == NULL)
@@ -49,10 +52,12 @@ void connection_pool::init(string url, string User, string PassWord, string DBNa
 			LOG_ERROR("MySQL Error");
 			exit(1);
 		}
+        //wty 存入链接池中
 		connList.push_back(con);
 		++m_FreeConn;
 	}
 
+    //wty 更改信号量，用以进程同步
 	reserve = sem(m_FreeConn);
 
 	m_MaxConn = m_FreeConn;
@@ -67,8 +72,10 @@ MYSQL *connection_pool::GetConnection()
 	if (0 == connList.size())
 		return NULL;
 
+    //wty 根据信号量进行堵塞
 	reserve.wait();
-	
+
+    //wty 再取东西的时候，都要加锁，保证数据的一致性，一面同时取出
 	lock.lock();
 
 	con = connList.front();
@@ -131,6 +138,7 @@ connection_pool::~connection_pool()
 	DestroyPool();
 }
 
+//wty 封装获取一个连接的过程
 connectionRAII::connectionRAII(MYSQL **SQL, connection_pool *connPool){
 	*SQL = connPool->GetConnection();
 	
@@ -138,6 +146,7 @@ connectionRAII::connectionRAII(MYSQL **SQL, connection_pool *connPool){
 	poolRAII = connPool;
 }
 
+//wty 封装释放一个连接的过程
 connectionRAII::~connectionRAII(){
 	poolRAII->ReleaseConnection(conRAII);
 }

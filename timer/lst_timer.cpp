@@ -8,6 +8,7 @@ sort_timer_lst::sort_timer_lst()
 }
 sort_timer_lst::~sort_timer_lst()
 {
+    //wty 释放定时器内存
     util_timer *tmp = head;
     while (tmp)
     {
@@ -23,11 +24,13 @@ void sort_timer_lst::add_timer(util_timer *timer)
     {
         return;
     }
+    //wty head为NULL则将当前timer设置成头尾
     if (!head)
     {
         head = tail = timer;
         return;
     }
+    //wty sort timer pointer， 头插法
     if (timer->expire < head->expire)
     {
         timer->next = head;
@@ -44,21 +47,28 @@ void sort_timer_lst::adjust_timer(util_timer *timer)
         return;
     }
     util_timer *tmp = timer->next;
+    //wty 正序，直接返回
     if (!tmp || (timer->expire < tmp->expire))
     {
         return;
     }
+    //wty 当前节点为定时器链表的头结点，要调整头结点，则需要对后续的节点进行调整
     if (timer == head)
     {
+        //wty 头结点断链，将头结点指向next节点
         head = head->next;
         head->prev = NULL;
+        //wty 将timer节点脱离，然后重新加入到链表中进行调整
         timer->next = NULL;
+        //wty next节点作为头结点
         add_timer(timer, head);
     }
     else
     {
+        //wty 分离head，重新加入链表进行调整
         timer->prev->next = timer->next;
         timer->next->prev = timer->prev;
+        //wty timer的next节点作为头结点
         add_timer(timer, timer->next);
     }
 }
@@ -102,12 +112,15 @@ void sort_timer_lst::tick()
     
     time_t cur = time(NULL);
     util_timer *tmp = head;
+    //wty 对定时器链表进行超时清洗，将超时的定时器全部删除，同时删除定时器对应的客户端请求，以及请求计数，关闭套接字
     while (tmp)
     {
+        //wty 不超时的节点不作处理
         if (cur < tmp->expire)
         {
             break;
         }
+        //wty 超时后删除定时器以及在epoll中的事件
         tmp->cb_func(tmp->user_data);
         head = tmp->next;
         if (head)
@@ -147,6 +160,7 @@ void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)
 
 void Utils::init(int timeslot)
 {
+    //wty 初始化定时器事件
     m_TIMESLOT = timeslot;
 }
 
@@ -160,6 +174,7 @@ int Utils::setnonblocking(int fd)
 }
 
 //将内核事件表注册读事件，ET模式，选择开启EPOLLONESHOT
+//wty EPOLLONESHOT表示只触发一次，该事件被处理完毕之前，都不会再触发
 void Utils::addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
 {
     epoll_event event;
@@ -189,12 +204,17 @@ void Utils::sig_handler(int sig)
 //设置信号函数
 void Utils::addsig(int sig, void(handler)(int), bool restart)
 {
+    //wty 结构用来设置和处理信号函数
     struct sigaction sa;
     memset(&sa, '\0', sizeof(sa));
     sa.sa_handler = handler;
     if (restart)
+        //wty 用于指定在信号处理程序返回时是否自动重新启动被中断的系统调用
         sa.sa_flags |= SA_RESTART;
+    //wty 用于将一个信号集中的所有信号都设置为1
     sigfillset(&sa.sa_mask);
+    //wty sigprocmask(SIG_BLOCK, &sa, NULL);   可以通过该函数阻塞置1的信号，阻塞信号是不让系统被阻塞的信号中断
+    //wty 注册信号处理函数与信号进行关联
     assert(sigaction(sig, &sa, NULL) != -1);
 }
 
@@ -214,6 +234,7 @@ void Utils::show_error(int connfd, const char *info)
 int *Utils::u_pipefd = 0;
 int Utils::u_epollfd = 0;
 
+//wty 删除epoll中的事件，同时关闭套接字，减少http_conn::m_user_count的计数
 class Utils;
 void cb_func(client_data *user_data)
 {
