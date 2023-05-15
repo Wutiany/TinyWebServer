@@ -9,11 +9,13 @@ using namespace std;
 Log::Log()
 {
     m_count = 0;
+    //wty 异步
     m_is_async = false;
 }
 
 Log::~Log()
 {
+    //wty 关闭log的文件指针
     if (m_fp != NULL)
     {
         fclose(m_fp);
@@ -42,7 +44,7 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
     struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
 
- 
+    //wty 字符最后出现的位置
     const char *p = strrchr(file_name, '/');
     char log_full_name[256] = {0};
 

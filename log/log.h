@@ -13,6 +13,7 @@ using namespace std;
 class Log
 {
 public:
+    //wty c++11以前多线程下不安全，因为静态局部变量的初始化不是在第一次调用该函数的时候进行的，可能会发生冲突
     //C++11以后,使用局部变量懒汉不用加锁
     static Log *get_instance()
     {
@@ -22,6 +23,7 @@ public:
 
     static void *flush_log_thread(void *args)
     {
+        //wty 出了作用域，实例就被销毁了
         Log::get_instance()->async_write_log();
     }
     //可选择的参数有日志文件、日志缓冲区大小、最大行数以及最长日志条队列
