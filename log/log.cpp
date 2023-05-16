@@ -96,6 +96,7 @@ void Log::write_log(int level, const char *format, ...)
         strcpy(s, "[info]:");
         break;
     }
+    //wty 写日志名，每天对应一个log，通过获取事件来确定
     //写入一个log，对m_count++, m_split_lines最大行数
     m_mutex.lock();
     m_count++;
@@ -104,6 +105,7 @@ void Log::write_log(int level, const char *format, ...)
     {
         
         char new_log[256] = {0};
+        //wty 刷新缓冲区
         fflush(m_fp);
         fclose(m_fp);
         char tail[16] = {0};
@@ -125,6 +127,7 @@ void Log::write_log(int level, const char *format, ...)
  
     m_mutex.unlock();
 
+    //wty 获取可变参数列表
     va_list valst;
     va_start(valst, format);
 
@@ -135,14 +138,15 @@ void Log::write_log(int level, const char *format, ...)
     int n = snprintf(m_buf, 48, "%d-%02d-%02d %02d:%02d:%02d.%06ld %s ",
                      my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday,
                      my_tm.tm_hour, my_tm.tm_min, my_tm.tm_sec, now.tv_usec, s);
-    
+    //wty format 是一个字符串，是需要格式化的指令   “%s”   valst 是可变参数列表，将可变列表的数据，通过format去格式化大str缓冲区中
     int m = vsnprintf(m_buf + n, m_log_buf_size - n - 1, format, valst);
     m_buf[n + m] = '\n';
     m_buf[n + m + 1] = '\0';
     log_str = m_buf;
 
     m_mutex.unlock();
-
+    //wty 上方代码为处理写入的log
+    //wty 根据是否为异步，来写入数据
     if (m_is_async && !m_log_queue->full())
     {
         m_log_queue->push(log_str);
